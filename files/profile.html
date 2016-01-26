@@ -1,0 +1,242 @@
+<!--
+STC1000+, improved firmware and Arduino based firmware uploader for the STC-1000 dual stage thermostat.
+
+Copyright 2014 Mats Staffansson
+
+This file is part of STC1000+.
+
+STC1000+ is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+STC1000+ is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with STC1000+. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<title>STC-1000+ Profile {prno}</title>
+<style type="text/css">
+
+body { font-family: Verdana, Arial, sans-serif; font-size: 12px; }
+#placeholder { width: 800px; height: 600px; }
+
+</style>
+<script src="jquery.js"></script>
+<script src="jquery.flot.min.js"></script>
+<script src="jquery.flot.al.js"></script>
+
+<script type="text/javascript">
+
+function ramp(step, dur){
+	var t = (dur << 6);
+	var sp = 32;
+	var i;
+	var profile_step_dur = $('#dh' + step).val();
+	var profile_step_sp = Math.round($('#sp' + step).val() * 10.0);
+	step++;
+	var profile_next_step_sp = Math.round($('#sp' + step).val() * 10.0);
+
+	// Linear interpolation calculation of new setpoint (64 substeps)
+	for (i = 0; i < 64; i++) {
+		if (t >= profile_step_dur) {
+			t -= profile_step_dur;
+			sp += profile_next_step_sp;
+		} else {
+			sp += profile_step_sp;
+		}
+	}
+	sp >>= 6;
+
+	return (sp / 10.0);
+}
+
+function calc(){
+	var i,j;
+
+	var x = 0;
+	var y = Math.round($('#sp0').val() * 10) / 10.0;
+	var plotdata = [];
+	var xmax=0;
+
+	for(i=0; i<9; i++){
+		var dh = Math.round($('#dh' + i).val());
+		if(dh===0){
+			break;
+		}
+		xmax += dh;
+	}
+
+	var unit = "Hours";
+	var divisor = 1.0;
+	if(xmax >= (24*7*4)){ // 4 weeks or more?
+		unit = "Weeks";
+		divisor = (7*24.0);
+	} else if(xmax >= (24*2)){ // 2 Days or more?
+		unit = "Days";
+		divisor = 24.0;
+	}
+
+	for(i=0; i<9; i++) {
+		var d1 = [];
+		var dh = $('#dh' + i).val();
+		y = Math.round($('#sp' + i).val() * 10.0) / 10.0;
+		d1.push([x/divisor, y]);
+		if(dh==0){
+			break;
+		}
+		for(j=0; j < dh; j++){
+			if($('#set10').val() != "0"){
+				d1.push([x/divisor, y]);
+				y = ramp(i, j);
+				d1.push([x/divisor, y]);
+			}
+			x++;
+		}
+		d1.push([x/divisor, y]);
+		y = Math.round($('#sp' + (i+1)).val() * 10.0) / 10.0;
+		d1.push([x/divisor, y]);
+		plotdata.push({label: "Profile step: "+i, data: d1});
+	}
+
+	var d2 = [];
+	d2.push([x/divisor, y]);
+	d2.push([(x + x/8)/divisor, y]);
+	plotdata.push({label: "Thermostat", data: d2});
+
+	$.plot(
+		$("#placeholder"), 
+			plotdata,
+			{ 
+				series: {
+					points: { show: false },
+					lines: { show: true }
+				},
+				axisLabels: {
+					show: true
+				},
+				xaxes: [{
+					axisLabel: unit,
+					tickFormatter: function(val, axis) { return val.toFixed(1);}
+				}],
+				yaxes: [{
+					position: 'left',
+					axisLabel: 'Temperature',
+					axisLabelPadding: 8,
+					tickFormatter: function(val, axis) { return val.toFixed(2);}
+				}]
+			}
+		);
+
+}
+
+$(document).ready(function () {
+	$( ".plainnumber" ).change(function() {
+		calc();
+	});
+	calc();
+});
+
+</script>
+</head>
+
+<body>
+
+<h3>About</h3>
+STC-1000+ Profile editor<br>
+&copy; 2014 Mats Staffansson<p>
+This page is a part of the <a href="https://github.com/matsstaff/stc1000p">STC-1000+ project.</a><p>
+The purpose of this page it to visualize how the setpoint will be updated over time, <br>when running a profile (with the specified settings) on an STC-1000+ modified thermostat.<br>
+It will accurately show substeps when ramping is enabled.<p>
+Note that it only shows the calculated setpoints, not the actual temperature of the FV.<br>
+All 6 profiles can be edited, but only one will be shown at any time. To switch between which profile is shown, click on the 'Pr0' to 'Pr5' link.<br>
+It is also possible to directly switch between Fahrenheit and Celsius mode. <br>
+Additionally, the parameters can be exported as the dual probe enabled version (<i>picprog.ino</i>), the data communication enabled version (<i>picprog_com.ino</i>) <br>
+or the wireless 433Mhz (<i>picprog_fo433.ino</i>) sketch for direct upload to the Arduino and STC-1000.<br> 
+To do so, simply press one of the 'Download dual probe sketch', 'Download com sketch' or 'Download FO433Mhz sketch' buttons at the bottom of the page when you are done editing. <br>
+Save the file and open with the Arduino IDE if not prompted to open it directly.<br>
+
+<form action="profile" method="post">
+	<input type="text" name="prno" id="prno" hidden value="{prno}"></intput>
+	<table>
+		<thead>
+			<tr>
+				<td><h3>Profile {prno}</h3></td>
+				<td><h3>Cheatsheet</h3></td>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td valign="top">
+					<table>
+						<tr><td>sp0:</td><td><input class="temperature" type="text" id="sp0" name="sp0" maxlength="4" size="4" autocomplete="off" value="{sp0}" title="Setpoint 0"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh0:</td><td><input class="plainnumber" type="text" id="dh0" name="dh0" maxlength="3" size="4" autocomplete="off" value="{dh0}" title="Duration 0"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp1:</td><td><input class="temperature" type="text" id="sp1" name="sp1" maxlength="4" size="4" autocomplete="off" value="{sp1}" title="Setpoint 1"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh1:</td><td><input class="plainnumber" type="text" id="dh1" name="dh1" maxlength="3" size="4" autocomplete="off" value="{dh1}" title="Duration 1"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp2:</td><td><input class="temperature" type="text" id="sp2" name="sp2" maxlength="4" size="4" autocomplete="off" value="{sp2}" title="Setpoint 2"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh2:</td><td><input class="plainnumber" type="text" id="dh2" name="dh2" maxlength="3" size="4" autocomplete="off" value="{dh2}" title="Duration 2"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp3:</td><td><input class="temperature" type="text" id="sp3" name="sp3" maxlength="4" size="4" autocomplete="off" value="{sp3}" title="Setpoint 3"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh3:</td><td><input class="plainnumber" type="text" id="dh3" name="dh3" maxlength="3" size="4" autocomplete="off" value="{dh3}" title="Duration 3"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp4:</td><td><input class="temperature" type="text" id="sp4" name="sp4" maxlength="4" size="4" autocomplete="off" value="{sp4}" title="Setpoint 4"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh4:</td><td><input class="plainnumber" type="text" id="dh4" name="dh4" maxlength="3" size="4" autocomplete="off" value="{dh4}" title="Duration 4"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp5:</td><td><input class="temperature" type="text" id="sp5" name="sp5" maxlength="4" size="4" autocomplete="off" value="{sp5}" title="Setpoint 5"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh5:</td><td><input class="plainnumber" type="text" id="dh5" name="dh5" maxlength="3" size="4" autocomplete="off" value="{dh5}" title="Duration 5"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp6:</td><td><input class="temperature" type="text" id="sp6" name="sp6" maxlength="4" size="4" autocomplete="off" value="{sp6}" title="Setpoint 6"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh6:</td><td><input class="plainnumber" type="text" id="dh6" name="dh6" maxlength="3" size="4" autocomplete="off" value="{dh6}" title="Duration 6"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp7:</td><td><input class="temperature" type="text" id="sp7" name="sp7" maxlength="4" size="4" autocomplete="off" value="{sp7}" title="Setpoint 7"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh7:</td><td><input class="plainnumber" type="text" id="dh7" name="dh7" maxlength="3" size="4" autocomplete="off" value="{dh7}" title="Duration 7"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp8:</td><td><input class="temperature" type="text" id="sp8" name="sp8" maxlength="4" size="4" autocomplete="off" value="{sp8}" title="Setpoint 8"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+						<tr><td>dh8:</td><td><input class="plainnumber" type="text" id="dh8" name="dh8" maxlength="3" size="4" autocomplete="off" value="{dh8}" title="Duration 8"><span class="durscale">[h]</span></td></tr>
+						<tr><td>sp9:</td><td><input class="temperature" type="text" id="sp9" name="sp9" maxlength="4" size="4" autocomplete="off" value="{sp9}" title="Setpoint 9"/><span class="tscale">[&deg;{scale}]</span></td></tr>
+					</table>
+				</td>
+				<td valign="top">
+					<table>
+						<tr><td>1 day = 24 hours</td></tr>
+						<tr><td>2 days = 48 hours</td></tr>
+						<tr><td>3 days = 72 hours</td></tr>
+						<tr><td>4 days = 96 hours</td></tr>
+						<tr><td>5 days = 120 hours</td></tr>
+						<tr><td>6 days = 144 hours</td></tr>
+						<tr><td>7 days = 168 hours</td></tr>
+						<tr><td>8 days = 192 hours</td></tr>
+						<tr><td>9 days = 216 hours</td></tr>
+						<tr><td>10 days = 240 hours</td></tr>
+						<tr><td>11 days = 264 hours</td></tr>
+						<tr><td>12 days = 288 hours</td></tr>
+						<tr><td>13 days = 312 hours</td></tr>
+						<tr><td>14 days = 336 hours</td></tr>
+						<tr><td>15 days = 360 hours</td></tr>
+						<tr><td>16 days = 384 hours</td></tr>
+						<tr><td>17 days = 408 hours</td></tr>
+						<tr><td>18 days = 432 hours</td></tr>
+						<tr><td>19 days = 456 hours</td></tr>
+						<tr><td>20 days = 480 hours</td></tr>
+					</table>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+
+
+
+<br />
+
+<div id="placeholder"></div>
+
+<br />
+
+<input type="submit">Submit</input>
+</form>
+
+</body>
+
