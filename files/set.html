@@ -1,0 +1,74 @@
+<!--
+STC1000+, improved firmware and Arduino based firmware uploader for the STC-1000 dual stage thermostat.
+
+Copyright 2014 Mats Staffansson
+
+This file is part of STC1000+.
+
+STC1000+ is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+STC1000+ is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with STC1000+. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<title>STC-1000+ Set menu</title>
+<style type="text/css">
+
+body { font-family: Verdana, Arial, sans-serif; font-size: 12px; }
+#placeholder { width: 800px; height: 600px; }
+
+</style>
+<script src="jquery.js"></script>
+<script src="jquery.flot.min.js"></script>
+<script src="jquery.flot.al.js"></script>
+
+<script type="text/javascript">
+
+
+</script>
+</head>
+
+<body>
+
+STC-1000+ Set menu editor<br>
+&copy; 2014 Mats Staffansson<p>
+This page is a part of the <a href="https://github.com/matsstaff/stc1000p">STC-1000+ project.</a><p>
+
+<form action="set" method="post">
+<h3>Set</h3>
+	<table>
+		<tr><td>SP:</td><td><input class="temperature" type="text" id="SP" name="SP" maxlength="4" size="4" autocomplete="off" value="{SP}" title="Setpoint"><span class="tscale">[&deg;C]</span></td></tr>
+		<tr><td>hy:</td><td><input class="tempdiff" type="text" id="hy" name="hy" maxlength="4" size="4" autocomplete="off" value="{hy}" title="Hysteresis"><span class="tscale">[&deg;C]</span></td></tr>
+		<tr><td>tc:</td><td><input class="tempdiff" type="text" id="tc" name="tc" maxlength="4" size="4" autocomplete="off" value="{tc}" title="Temperature correction"><span class="tscale">[&deg;C]</span></td></tr>
+		<tr><td>SA:</td><td><input class="tempdiff" type="text" id="SA" name="SA" maxlength="4" size="4" autocomplete="off" value="{SA}" title="Setpoint Alarm"><span class="tscale">[&deg;C]</span></td></tr>
+		<tr><td>St:</td><td><input class="profilestep" type="text" id="St" name="St" maxlength="1" size="4" autocomplete="off" value="{St}" title="Running profile step number"><span class="nscale">[#]</span></td></tr>
+		<tr><td>dh:</td><td><input class="duration" type="text" id="dh" name="dh" maxlength="3" size="4" autocomplete="off" value="{dh}" title="Running profile duration"><span class="durscale">[h]</span></td></tr>
+		<tr><td>cd:</td><td><input class="coolingdelay" type="text" id="cd" name="cd" maxlength="2" size="4" autocomplete="off" value="{cd}" title="Cooling delay"><span class="mscale">[min]</span></td></tr>
+		<tr><td>hd:</td><td><input class="heatingdelay" type="text" id="hd" name="hd" maxlength="2" size="4" autocomplete="off" value="{hd}" title="Heating delay"><span class="mscale">[min]</span></td></tr>
+		<tr><td>rP:</td><td><input class="boolean recalc" type="text" id="rP" name="rP" maxlength="1" size="4" autocomplete="off" value="{rP}" title="Ramping enabled"><span class="bscale">[b]</span></td></tr>
+		<tr><td>rn:</td><td><input class="runmode" type="text" id="rn" name="rn" maxlength="1" size="4" autocomplete="off" value="{rn}" title="Run mode [0-5 = profile, 6=thermostat]"><span class="nscale">[#]</span></td></tr>
+		<!-- <tr><td>on:</td><td><input class="boolean" type="text" id="on" name="on" maxlength="1" size="4" autocomplete="off" value="1" title="On [1=On, 0=Soft off]]"><span class="bscale">[b]</span></td></tr> -->
+	</table>
+
+
+
+<br />
+
+<input type="submit" value="Set"></input>
+</form>
+
+</body>
+

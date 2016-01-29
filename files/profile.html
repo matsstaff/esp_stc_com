@@ -24,7 +24,7 @@ along with STC1000+. If not, see <http://www.gnu.org/licenses/>.
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-<title>STC-1000+ Profile {prno}</title>
+<title>STC-1000+ Profile {Pr}</title>
 <style type="text/css">
 
 body { font-family: Verdana, Arial, sans-serif; font-size: 12px; }
@@ -151,26 +151,16 @@ $(document).ready(function () {
 
 <body>
 
-<h3>About</h3>
 STC-1000+ Profile editor<br>
 &copy; 2014 Mats Staffansson<p>
 This page is a part of the <a href="https://github.com/matsstaff/stc1000p">STC-1000+ project.</a><p>
-The purpose of this page it to visualize how the setpoint will be updated over time, <br>when running a profile (with the specified settings) on an STC-1000+ modified thermostat.<br>
-It will accurately show substeps when ramping is enabled.<p>
-Note that it only shows the calculated setpoints, not the actual temperature of the FV.<br>
-All 6 profiles can be edited, but only one will be shown at any time. To switch between which profile is shown, click on the 'Pr0' to 'Pr5' link.<br>
-It is also possible to directly switch between Fahrenheit and Celsius mode. <br>
-Additionally, the parameters can be exported as the dual probe enabled version (<i>picprog.ino</i>), the data communication enabled version (<i>picprog_com.ino</i>) <br>
-or the wireless 433Mhz (<i>picprog_fo433.ino</i>) sketch for direct upload to the Arduino and STC-1000.<br> 
-To do so, simply press one of the 'Download dual probe sketch', 'Download com sketch' or 'Download FO433Mhz sketch' buttons at the bottom of the page when you are done editing. <br>
-Save the file and open with the Arduino IDE if not prompted to open it directly.<br>
 
 <form action="profile" method="post">
-	<input type="text" name="prno" id="prno" hidden value="{prno}"></intput>
+	<input type="text" name="prno" id="prno" hidden value="{Pr}"></intput>
 	<table>
 		<thead>
 			<tr>
-				<td><h3>Profile {prno}</h3></td>
+				<td><h3>Profile {Pr}</h3></td>
 				<td><h3>Cheatsheet</h3></td>
 			</tr>
 		</thead>
@@ -235,7 +225,7 @@ Save the file and open with the Arduino IDE if not prompted to open it directly.
 
 <br />
 
-<input type="submit">Submit</input>
+<input type="submit" value="Set profile"></input>
 </form>
 
 </body>

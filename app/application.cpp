@@ -3,7 +3,7 @@
 #include <AppSettings.h>
 
 HttpServer server;
-FTPServer ftp;
+//FTPServer ftp;
 
 BssList networks;
 String network, password, currentNetwork;
@@ -192,7 +192,7 @@ bool com_read_cooling(int *cooling){
 #define TPEXT() delay(2)                /* 1.0ms minimum, 2.1ms maximum*/
 #define TDIS()  delayMicroseconds(1)    /* 300ns minimum */
 #define TENTS() delayMicroseconds(1)    /* 100ns minimum */
-#define TENTH() delay(8)  		        /* 250us minimum */ /* Needs a lot more when powered by arduino */
+#define TENTH() delay(4)  		        /* 250us minimum */ /* Needs a lot more when powered by arduino */
 #define TEXIT() delayMicroseconds(1)    /* 1us minimum */
 
 /* Commands */
@@ -228,7 +228,7 @@ void write_bit(unsigned char bit) {
 	TCKH();
 	digitalWrite(ICSPCLK, LOW);
 	TCKL();
-//	digitalWrite(ICSPDAT,LOW); // REM?
+	digitalWrite(ICSPDAT,LOW); // REM?
 }
 
 unsigned char read_bit() {
@@ -428,22 +428,20 @@ void write_version(unsigned int data_word_out) {
 	begin_internally_timed_programming();
 }
 
-unsigned char parse_hex_nibble() {
-	unsigned char data;
-	fileRead(hexfile, &data, 1);
+unsigned char parse_hex_nibble(unsigned char data) {
 	data = toupper(data);
 	return (data >= 'A' ? data - 'A' + 10 : data - '0') & 0xf;
 }
 
-unsigned char parse_hex() {
+unsigned char parse_hex(unsigned char u, unsigned char l) {
 	unsigned char data;
-	data = parse_hex_nibble() << 4;
-	data |= parse_hex_nibble();
+	data = parse_hex_nibble(u) << 4;
+	data |= parse_hex_nibble(l);
 
 	return data;
 }
 
-unsigned char handle_hex_file_line(unsigned char bytecount,
+unsigned char handle_hex_data(unsigned char bytecount,
 		unsigned int address, unsigned char recordtype, unsigned char data[]) {
 	static unsigned int device_address = 0;
 	unsigned char i;
@@ -538,65 +536,95 @@ unsigned char handle_hex_file_line(unsigned char bytecount,
 	return 0;
 }
 
+unsigned char handle_hex_file_line(const char *buf){
+
+	unsigned char bytecount;
+	unsigned int address;
+	unsigned char recordtype;
+	unsigned char data[16];
+	unsigned char checksum;
+	unsigned char i, j;
+
+	// Read start of line
+	for(i=0; i<64; i++){
+		if(buf[i] == '\0'){
+			return 1;
+		}
+		if (buf[i] == ':') {
+			break;
+		}
+	}
+
+	if(i>=52){
+		return 1;
+	}
+
+	i++;
+
+	// Read bytecount
+	bytecount = parse_hex(buf[i++], buf[i++]);
+	checksum = bytecount;
+
+	// Read address
+	j = parse_hex(buf[i++], buf[i++]);
+	address = ((unsigned int) j) << 8;
+	checksum += j;
+	j = parse_hex(buf[i++], buf[i++]);
+	address |= j;
+	checksum += j;
+
+	// Read recordtype
+	recordtype = parse_hex(buf[i++], buf[i++]);
+	checksum += recordtype;
+
+	for (j = 0; j < bytecount; j++) {
+		data[j] = parse_hex(buf[i++], buf[i++]);
+		checksum += data[j];
+	}
+
+	// Read checksum
+	j = parse_hex(buf[i++], buf[i++]);
+	checksum += j;
+
+	if (checksum) {
+		Serial.println("Checksum error!");
+		return 1;
+	}
+	WDT.alive(); // Feed the dog
+
+	return handle_hex_data(bytecount, address, recordtype, data);
+}
+
+/*
 void upload_hex_file_to_device(String filename) {
 	unsigned char done = 0;
+	char line[64];
 
 	hexfile=fileOpen(filename.c_str(), eFO_ReadOnly);
 
 	Serial.println("Reading hex data...");
 
+	// Read start of line
 	while (!done) {
-		unsigned char bytecount;
-		unsigned int address;
-		unsigned char recordtype;
-		unsigned char data[16];
-		unsigned char checksum;
-		unsigned char i;
-
-		// Read start of line
-		while (1) {
-			unsigned char c;
-			fileRead(hexfile, &c, 1);
-			if (c == ':') {
-				break;
+		unsigned char c;
+		done = fileRead(hexfile, &c, 1) == 0;
+		if (c == ':') {
+			unsigned char i=0;
+			line[0]=c;
+			for(i=1; i<64; i++){
+				fileRead(hexfile, &c, 1);
+				if(c=='\0' || c=='\n' || c=='\r')
+					break;
+				line[i] = c;
 			}
+			line[i] = '\0';
+			done = handle_hex_file_line(line);
 		}
-
-		// Read bytecount
-		bytecount = parse_hex();
-		checksum = bytecount;
-
-		// Read address
-		address = ((unsigned int) parse_hex()) << 8;
-		address |= parse_hex();
-		checksum += ((unsigned char) (address >> 8));
-		checksum += ((unsigned char) (address));
-
-		// Read recordtype
-		recordtype = parse_hex();
-		checksum += recordtype;
-
-		for (i = 0; i < bytecount; i++) {
-			data[i] = parse_hex();
-			checksum += data[i];
-		}
-
-		// Read checksum
-		i = parse_hex();
-		checksum += i;
-
-		if (checksum) {
-			Serial.println("Checksum error!");
-			break;
-		}
-		WDT.alive(); // Feed the dog
-
-		done = handle_hex_file_line(bytecount, address, recordtype, data);
 	}
 
 	fileClose(hexfile);
 }
-
+*/
 
 
 /*---- */
@@ -611,16 +639,8 @@ void onIndex(HttpRequest &request, HttpResponse &response)
 	response.sendTemplate(tmpl); // will be automatically deleted
 }
 
-void onTemp(HttpRequest &request, HttpResponse &response)
-{
-	int temperature;
-	TemplateFileStream *tmpl = new TemplateFileStream("temp.html");
-	com_read_temp(&temperature);
-	auto &vars = tmpl->variables();
-	vars["temp"] = String(temperature);
-	response.sendTemplate(tmpl); // will be automatically deleted
-}
-
+/* Deprecated */
+/*
 void onUpload(HttpRequest &request, HttpResponse &response)
 {
 	TemplateFileStream *tmpl = new TemplateFileStream("upload.html");
@@ -677,6 +697,7 @@ void onUpload(HttpRequest &request, HttpResponse &response)
 
 	response.sendTemplate(tmpl); // will be automatically deleted
 }
+*/
 
 void onProfile(HttpRequest &request, HttpResponse &response)
 {
@@ -687,7 +708,7 @@ void onProfile(HttpRequest &request, HttpResponse &response)
 
 	if (request.getRequestMethod() == RequestMethod::POST)
 	{
-		prno = atoi(request.getPostParameter("prno", "0").c_str());
+		prno = atoi(request.getPostParameter("Pr", "0").c_str());
 
 		addr = 19*prno;
 
@@ -701,14 +722,14 @@ void onProfile(HttpRequest &request, HttpResponse &response)
 		com_write_eeprom(addr++, (int)(f*10.0));
 
 	} else if (request.getRequestMethod() == RequestMethod::GET) {
-		prno = atoi(request.getQueryParameter("prno", "0").c_str());
+		prno = atoi(request.getQueryParameter("Pr", "0").c_str());
 	}
 
 	TemplateFileStream *tmpl = new TemplateFileStream("profile.html");
 	auto &vars = tmpl->variables();
 
-	vars["prno"] = String(prno);
-	vars["scale"] = String("C");
+	vars["Pr"] = String(prno);
+	vars["scale"] = String("C"); // TODO: AppSetting?
 
 	addr = 19*prno;
 	for(i=0; i<9; i++){
@@ -719,6 +740,72 @@ void onProfile(HttpRequest &request, HttpResponse &response)
 	}
 	com_read_eeprom(addr++, &v);
 	vars["sp9"] = String(v/10) + "." + String(v%10);
+
+	response.sendTemplate(tmpl); // will be automatically deleted
+
+}
+
+void onSet(HttpRequest &request, HttpResponse &response)
+{
+	unsigned int prno = 0;
+	unsigned int i, addr;
+	int v;
+	float f;
+
+	if (request.getRequestMethod() == RequestMethod::POST)
+	{
+		prno = atoi(request.getPostParameter("Pr", "0").c_str());
+		addr = 19*6;
+
+		f = atof(request.getPostParameter(String("SP"), "0").c_str());
+		com_write_eeprom(addr++, (int)(f*10.0));
+		f = atof(request.getPostParameter(String("hy"), "0").c_str());
+		com_write_eeprom(addr++, (int)(f*10.0));
+		f = atof(request.getPostParameter(String("tc"), "0").c_str());
+		com_write_eeprom(addr++, (int)(f*10.0));
+		f = atof(request.getPostParameter(String("SA"), "0").c_str());
+		com_write_eeprom(addr++, (int)(f*10.0));
+		v = atoi(request.getPostParameter(String("St"), "0").c_str());
+		com_write_eeprom(addr++, v);
+		v = atoi(request.getPostParameter(String("dh"), "0").c_str());
+		com_write_eeprom(addr++, v);
+		v = atoi(request.getPostParameter(String("cd"), "0").c_str());
+		com_write_eeprom(addr++, v);
+		v = atoi(request.getPostParameter(String("hd"), "0").c_str());
+		com_write_eeprom(addr++, v);
+		v = atoi(request.getPostParameter(String("rP"), "0").c_str());
+		com_write_eeprom(addr++, v);
+		v = atoi(request.getPostParameter(String("rn"), "0").c_str());
+		com_write_eeprom(addr++, v);
+
+	}
+
+	TemplateFileStream *tmpl = new TemplateFileStream("set.html");
+	auto &vars = tmpl->variables();
+
+	addr = 19*6;
+
+	com_read_eeprom(addr++, &v);
+	vars["SP"] = String(v/10) + "." + String(v%10);
+	com_read_eeprom(addr++, &v);
+	vars["hy"] = String(v/10) + "." + String(v%10);
+	com_read_eeprom(addr++, &v);
+	vars["tc"] = String(v/10) + "." + String(v%10);
+	com_read_eeprom(addr++, &v);
+	vars["SA"] = String(v/10) + "." + String(v%10);
+
+	com_read_eeprom(addr++, &v);
+	vars["St"] = String(v);
+	com_read_eeprom(addr++, &v);
+	vars["dh"] = String(v);
+	com_read_eeprom(addr++, &v);
+	vars["cd"] = String(v);
+	com_read_eeprom(addr++, &v);
+	vars["hd"] = String(v);
+	com_read_eeprom(addr++, &v);
+	vars["rP"] = String(v);
+	com_read_eeprom(addr++, &v);
+	vars["rn"] = String(v);
 
 	response.sendTemplate(tmpl); // will be automatically deleted
 
@@ -907,22 +994,113 @@ void onAjaxWriteEeprom(HttpRequest &request, HttpResponse &response)
 	response.sendJsonObject(stream);
 }
 
+
+/* Websocket */
+void wsConnected(WebSocket& socket)
+{
+	Serial.println("Websocket connected");
+}
+
+void wsMessageReceived(WebSocket& socket, const String& message)
+{
+	static int line = 0;
+
+	if(String("hexflash").equals(message)){
+		unsigned int magic, ver, deviceid;
+		line = 0;
+
+		get_device_id(&magic, &ver, &deviceid);
+		Serial.print("Device ID is: 0x");
+		Serial.println(deviceid, HEX);
+		if ((deviceid & 0x3FE0) == 0x27C0) {
+			Serial.println("STC-1000 detected.");
+			if (magic == STC1000P_MAGIC_C || magic == STC1000P_MAGIC_F) {
+				Serial.print("STC-1000+ ");
+				if (magic == STC1000P_MAGIC_F) {
+					Serial.print("Fahrenheit ");
+				} else {
+					Serial.print("Celsius ");
+				}
+				Serial.print("firmware with version ");
+				Serial.print(ver / 100, DEC);
+				Serial.print(".");
+				Serial.print((ver % 100) / 10, DEC);
+				Serial.print((ver % 10), DEC);
+				Serial.println(" detected.");
+			} else {
+				Serial.println("No previous STC-1000+ firmware detected.");
+				Serial.println(
+						"Consider initializing EEPROM when flashing.");
+			}
+			Serial.print("Sketch has version ");
+			Serial.print(STC1000P_VERSION / 100, DEC);
+			Serial.print(".");
+			Serial.print((STC1000P_VERSION % 100) / 10, DEC);
+			Serial.print((STC1000P_VERSION % 10), DEC);
+			Serial.println("");
+			Serial.println("");
+
+			WDT.alive();
+
+		       	lvp_entry();
+		       	load_configuration(0);
+		       	bulk_erase_program_memory();
+		       	reset_address();
+
+			Serial.println("Send " + line);
+			socket.sendString(String(line++));
+		} else {
+			Serial.println("Send -1");
+			socket.sendString("-1");
+ 		}
+	} else if(line) {
+		if(handle_hex_file_line(message.c_str())){
+		       	write_magic(STC1000P_MAGIC_C);
+		       	write_version(STC1000P_VERSION);
+		       	p_exit();
+			socket.sendString(String("done"));
+		} else {
+			socket.sendString(String(line++));
+		}
+	}
+}
+
+void wsBinaryReceived(WebSocket& socket, uint8_t* data, size_t size)
+{
+	Serial.printf("Websocket binary data recieved, size: %d\r\n", size);
+}
+
+void wsDisconnected(WebSocket& socket)
+{
+}
+
+
+
+
 void startWebServer()
 {
 	server.listen(80);
 	server.addPath("/", onIndex);
 	server.addPath("/ipconfig", onIpConfig);
-	server.addPath("/temp", onTemp);
-	server.addPath("/upload", onUpload);
 	server.addPath("/profile", onProfile);
+	server.addPath("/set", onSet);
 	server.addPath("/ajax/get-networks", onAjaxNetworkList);
 	server.addPath("/ajax/connect", onAjaxConnect);
 	server.addPath("/ajax/readtemp", onAjaxReadTemp);
 	server.addPath("/ajax/readeeprom", onAjaxReadEeprom);
 	server.addPath("/ajax/writeeeprom", onAjaxWriteEeprom);
 	server.setDefaultHandler(onFile);
+
+// Web Sockets configuration
+	server.enableWebSockets(true);
+	server.setWebSocketConnectionHandler(wsConnected);
+	server.setWebSocketMessageHandler(wsMessageReceived);
+	server.setWebSocketBinaryHandler(wsBinaryReceived);
+	server.setWebSocketDisconnectionHandler(wsDisconnected);
+
 }
 
+/*
 void startFTP()
 {
 	if (!fileExist("index.html"))
@@ -932,11 +1110,12 @@ void startFTP()
 	ftp.listen(21);
 	ftp.addUser("me", "123"); // FTP account
 }
+*/
 
 // Will be called when system initialization was completed
 void startServers()
 {
-	startFTP();
+//	startFTP();
 	startWebServer();
 }
 

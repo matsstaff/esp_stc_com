@@ -1,21 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="">
-    <meta name="author" content="">
-    <link rel="icon" href="../../favicon.ico">
+    <title>HEX uploader</title>
+  </head>
+  <body>
 
-    <title>upload</title>
+<style>
+  #progress_bar {
+    margin: 10px 0;
+    padding: 3px;
+    border: 1px solid #000;
+    font-size: 14px;
+    clear: both;
+    opacity: 0;
+    -moz-transition: opacity 1s linear;
+    -o-transition: opacity 1s linear;
+    -webkit-transition: opacity 1s linear;
+  }
+  #progress_bar.loading {
+    opacity: 1.0;
+  }
+  #progress_bar .percent {
+    background-color: #99ccff;
+    height: auto;
+    width: 0;
+  }
+</style>
 
-</head>
-<body>
-<div class="container">
- <div class="form-group">
-  <label>Upload </label>
- </div>
-</div> <!-- /container -->
-</body>
+Click the 'Browse' button and find the HEX file you want to flash to the STC-1000.<br>
+(Probably 'stc1000p_celcius_com.hex' or 'stc1000p_fahrenheit_com.hex'.)<br>
+<input type="file" id="files" name="file" />
+<div id="progress_bar"><div class="percent">0%</div></div>
+
+<script>
+
+  var reader;
+  var progress = document.querySelector('.percent');
+  var arr = new Array();
+  var websocket;
+
+  function errorHandler(evt) {
+    switch(evt.target.error.code) {
+      case evt.target.error.NOT_FOUND_ERR:
+        alert('File Not Found!');
+        break;
+      case evt.target.error.NOT_READABLE_ERR:
+        alert('File is not readable');
+        break;
+      case evt.target.error.ABORT_ERR:
+        break; // noop
+      default:
+        alert('An error occurred reading this file.');
+    };
+  }
+
+  function updateProgress(lineNumber) {
+      var percentLoaded = arr.length > 0 ? Math.round((lineNumber / arr.length) * 100) : 0;
+      if (percentLoaded < 100) {
+        document.getElementById('progress_bar').className = 'loading';
+        progress.style.width = percentLoaded + '%';
+        progress.textContent = percentLoaded + '%';
+      } else {
+	progress.style.width = '100%';
+	progress.textContent = 'FLASH DONE';
+	setTimeout("document.getElementById('progress_bar').className='';", 2000);
+      }
+  }
+
+  function hex2dec(hex){
+	return parseInt("0x"+hex);
+  }
+
+  function validateLine(line){
+      var pos = 0;
+      var checksum = 0;
+
+      if(line.length < 11){
+	return false;
+      }
+
+      if(line.charAt(pos) != ':'){
+        return false;
+      }
+
+      pos++;
+
+      var bytecount = hex2dec(line.substr(pos,2));
+      checksum += bytecount;
+      pos += 2;
+
+      if(line.length != (bytecount*2)+11){
+	return false;
+      }
+
+      // Address
+      checksum += hex2dec(line.substr(pos,2));
+      pos += 2;
+      checksum += hex2dec(line.substr(pos,2));
+      pos += 2;
+
+      // record type
+      checksum += hex2dec(line.substr(pos,2));
+      pos+=2;
+
+      // data
+      for(var i=0; i<bytecount; i++){
+	checksum += hex2dec(line.substr(pos,2));
+	pos+=2;
+      }
+
+      // record type
+      checksum += hex2dec(line.substr(pos,2));
+      pos+=2;
+
+      // Check checksum
+      if((checksum & 0xFF) != 0){
+	return false;
+      }
+
+      return true;
+  }
+
+
+  function onMessage(evt)
+  {
+     if("done" == evt.data){
+	websocket.close();
+	return;
+     }
+
+     // Request line no
+     var i = parseInt(evt.data);
+
+     if(i==-1){
+	websocket.close();
+	alert('STC-1000 Not detected. Check wiring');
+	return;
+     }
+
+     if(i>=0 && i<arr.length){
+         updateProgress(i);
+         // Send HEX line
+	 websocket.send(arr[i]);
+     } else {
+	websocket.close();
+	document.getElementById('progress_bar').className='';
+	alert("Received: " + evt.data);
+     }
+  }
+
+  function handleData(data) {
+	arr = data.split('\n');
+	for(var i = arr.length -1; i >= 0 ; i--){
+		var line = arr[i].trim();
+		if(line.length > 0 && !line.startsWith('#')){
+			if(validateLine(line)){
+				arr[i] = line;
+			} else {
+				alert("invalid HEX file");
+				return;
+			}
+		} else {
+			arr.splice(i, 1);
+		}
+	}
+
+	if(arr.length == 0){
+		alert("No data!");
+		return;
+	}
+
+	var wsUri = "ws://" + location.host + "/";
+	websocket = new WebSocket(wsUri);
+	websocket.onopen = function(evt) { websocket.send("hexflash"); };
+//	websocket.onclose = function(evt) { };
+	websocket.onmessage = function(evt) { onMessage(evt) };
+//	websocket.onerror = function(evt) { };
+  }
+
+  function handleFileSelect(evt) {
+
+    reader = new FileReader();
+    reader.onerror = errorHandler;
+    reader.onload = function(e) {
+      handleData(e.target.result);
+    };
+
+    reader.readAsText(evt.target.files[0]);
+  }
+
+  document.getElementById('files').addEventListener('change', handleFileSelect, false);
+</script>
+
+  </body>
 </html>
+
