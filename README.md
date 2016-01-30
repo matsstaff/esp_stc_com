@@ -20,3 +20,4 @@ STC\-1000
 |RTS | CH_PD |
 |GND | GND |
 
+![Schematic](http://i67.tinypic.com/2v2famu.jpg)
